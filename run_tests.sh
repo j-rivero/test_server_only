@@ -30,7 +30,7 @@ run_test() {
   log_info "Running test: $test_name"
   log_info "Building from: $dockerfile"
 
-  if docker build -f "$dockerfile" -t "gz-sim10-test-${test_name}" .; then
+  if docker build --no-cache -f "$dockerfile" -t "gz-sim10-test-${test_name}" .; then
     log_info "TEST PASSED: $test_name"
     return 0
   else
