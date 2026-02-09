@@ -1,0 +1,61 @@
+# Test Case: gz-jetty - User-facing metapackage with full GUI
+# Purpose: Verify that users can install Gazebo Jetty (gz-sim10) using
+#          the user-friendly gz-jetty metapackage name which includes
+#          all GUI components and dependencies
+#
+# Expected: gz-jetty installs correctly with full GUI support
+
+FROM ubuntu:noble
+
+LABEL description="Test gz-jetty installation (user-facing metapackage with full GUI)"
+LABEL test_case="gz_jetty"
+
+RUN apt-get update \
+  && apt-get install -y \
+  curl \
+  lsb-release \
+  && rm -rf /var/lib/apt/lists/*
+
+# Add repositories
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-prerelease $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-pre.list > /dev/null
+
+# Install gz-jetty (user-facing metapackage for Gazebo Jetty)
+RUN apt-get update && apt-get install -y gz-jetty \
+  && rm -rf /var/lib/apt/lists/*
+
+# Verification: gz-jetty metapackage installed
+RUN dpkg -l | grep "gz-jetty" && \
+    echo "SUCCESS: gz-jetty metapackage installed"
+
+# Verification: GUI packages are present (should be included)
+RUN dpkg -l | grep "libgz-sim10-gui" && \
+    echo "SUCCESS: libgz-sim10-gui present"
+
+RUN dpkg -l | grep "libgz-sim10-plugins-gui" && \
+    echo "SUCCESS: libgz-sim10-plugins-gui present"
+
+# Verification: Core library present
+RUN dpkg -l | grep "libgz-sim10:" && \
+    echo "SUCCESS: libgz-sim10 (core) present"
+
+# Verification: Server binary present
+RUN test -f /usr/libexec/gz/sim10/gz-sim-server && \
+    echo "SUCCESS: gz-sim-server binary present"
+
+# Verification: gz sim command works
+RUN which gz && gz sim --help | head -3
+
+# Verification: gz-sim10 metapackage should also be present (dependency)
+RUN dpkg -l | grep "gz-sim10" && \
+    echo "SUCCESS: gz-sim10 related packages present"
+
+# List all gz-sim10 and gz-jetty related packages
+RUN echo "=== All Gazebo Jetty packages installed ===" && \
+    dpkg -l | grep -E "(gz-jetty|gz-sim10)" | awk '{print $2, $3}'
+
+# Show package description
+RUN apt-cache show gz-jetty | head -15
+
+CMD ["gz", "sim", "--help"]

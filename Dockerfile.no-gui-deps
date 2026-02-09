@@ -1,0 +1,88 @@
+# Test Case 3: Verify server installation has no GUI dependencies
+# Purpose: Comprehensive check that gz-sim10-server doesn't pull in
+#          any GUI-related packages (Qt, OGRE rendering, etc.)
+#
+# Expected: Minimal installation footprint suitable for headless servers
+
+FROM ubuntu:noble
+
+LABEL description="GUI dependencies absence verification"
+LABEL test_case="no_gui_deps"
+
+RUN apt-get update \
+  && apt-get install -y \
+  curl \
+  lsb-release \
+  && rm -rf /var/lib/apt/lists/*
+
+# Add repositories
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-prerelease $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-pre.list > /dev/null
+
+# Install server-only
+RUN apt-get update && apt-get install -y gz-sim10-server \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y gz-sim10-server \
+  && rm -rf /var/lib/apt/lists/*
+
+# Define patterns for GUI-related packages
+ENV GUI_PATTERNS="libqt|qt5|qt6|libogre|ogre|libgz-gui|libgz-sim.*-gui|x11|libx11|libgl1|mesa|wayland|xcb"
+
+# Verification: Check for GUI packages (should find NONE)
+RUN echo "=== Checking for GUI-related packages ===" && \
+  GUI_FOUND=$(dpkg -l | grep -iE "${GUI_PATTERNS}" || true) && \
+  if [ -n "$GUI_FOUND" ]; then \
+  echo "FAIL: GUI packages found!" && \
+  echo "$GUI_FOUND" && \
+  echo "" && \
+  echo "=== Finding reverse dependencies (what pulled these in) ===" && \
+  for pkg in $(echo "$GUI_FOUND" | awk '{print $2}' | cut -d: -f1); do \
+  echo "--- Reverse dependencies for $pkg ---" && \
+  apt-cache rdepends --installed "$pkg" 2>/dev/null || echo "Unable to query rdepends for $pkg" && \
+  echo ""; \
+  done && \
+  echo "" && \
+  echo "=== Tracing gz packages pulling GUI dependencies ===" && \
+  for gz_pkg in $(dpkg -l | grep "^ii" | grep "libgz-\|gz-" | awk '{print $2}' | cut -d: -f1); do \
+  echo "--- Checking $gz_pkg ---" && \
+  DEPS=$(apt-cache depends "$gz_pkg" 2>/dev/null | grep "Depends:" | awk '{print $2}' || true) && \
+  GUI_DEPS=$(echo "$DEPS" | grep -iE "libgtk|libsdl|libav|ffmpeg|x11|wayland|mesa|libgl" || true) && \
+  if [ -n "$GUI_DEPS" ]; then \
+  echo "  FOUND GUI dependency chain from $gz_pkg:" && \
+  echo "$GUI_DEPS" | sed 's/^/    -> /' && \
+  echo ""; \
+  fi; \
+  done && \
+  echo "" && \
+  echo "=== Direct dependencies of gz-sim10-server ===" && \
+  apt-cache depends gz-sim10-server | grep "Depends:" | awk '{print $2}' && \
+  exit 1; \
+  else \
+  echo "SUCCESS: No GUI packages installed"; \
+  fi
+
+# Verification: Check specific Gazebo GUI packages are absent
+RUN echo "=== Checking Gazebo GUI packages ===" && \
+  for pkg in libgz-gui9 libgz-sim10-gui libgz-sim10-plugins-gui gz-sim10; do \
+  if dpkg -s "$pkg" >/dev/null 2>&1; then \
+  echo "FAIL: $pkg should NOT be installed" && exit 1; \
+  else \
+  echo "OK: $pkg not installed (expected)"; \
+  fi; \
+  done
+
+# Verification: List all installed gz packages
+RUN echo "=== All installed Gazebo packages ===" && \
+  dpkg -l | grep "gz-" | awk '{print $2, $3}'
+
+# Verification: Check installation size is reasonable for server-only
+RUN echo "=== Installation size check ===" && \
+  du -sh /usr/lib/*/libgz* 2>/dev/null | head -20 || true
+
+# Verification: Check physics engine dependencies
+RUN echo "=== Physics engine packages ===" && \
+  dpkg -l | grep -E "dartsim|bullet|tpe" || echo "No physics engines explicitly listed"
+
+CMD ["gz-sim-server", "--version"]

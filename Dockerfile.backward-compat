@@ -1,0 +1,58 @@
+# Test Case 5: Backward compatibility - gz-jetty metapackage installation
+# Purpose: Verify that the package restructuring provides gz-jetty metapackage
+#          which users install for full Gazebo Jetty functionality
+#
+# Expected: gz-jetty installs correctly with all GUI components
+
+FROM ubuntu:noble
+
+LABEL description="Backward compatibility test for full gz-sim10 installation"
+LABEL test_case="backward_compat"
+
+RUN apt-get update \
+  && apt-get install -y \
+  curl \
+  lsb-release \
+  && rm -rf /var/lib/apt/lists/*
+
+# Add repositories
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-prerelease $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-pre.list > /dev/null
+
+# Install gz-jetty (user-friendly metapackage, should pull in GUI packages automatically)
+RUN apt-get update && apt-get install -y gz-jetty \
+  && rm -rf /var/lib/apt/lists/*
+
+# Verification: gz-jetty metapackage installed
+RUN dpkg -l | grep "gz-jetty" && \
+    echo "SUCCESS: gz-jetty metapackage installed"
+
+# Verification: GUI packages are present (backward compat)
+RUN dpkg -l | grep "libgz-sim10-gui" && \
+    echo "SUCCESS: libgz-sim10-gui present"
+
+RUN dpkg -l | grep "libgz-sim10-plugins-gui" && \
+    echo "SUCCESS: libgz-sim10-plugins-gui present"
+
+# Verification: Core packages present
+RUN dpkg -l | grep "libgz-sim10:" && \
+    echo "SUCCESS: libgz-sim10 (core) present"
+
+# Verification: Both server and GUI executables available
+RUN test -f /usr/libexec/gz/sim10/gz-sim-server && \
+    echo "SUCCESS: gz-sim-server binary present"
+
+# Verification: gz sim command works
+RUN which gz && gz sim --help | head -3
+
+# List all gz-sim10 related packages
+RUN echo "=== All gz-sim10 packages installed ===" && \
+    dpkg -l | grep "gz-sim10" | awk '{print $2, $3}'
+
+# Verification: Development package available (for building against)
+RUN apt-get update && apt-cache show libgz-sim10-dev && \
+    echo "SUCCESS: libgz-sim10-dev available" && \
+    rm -rf /var/lib/apt/lists/*
+
+CMD ["gz", "sim", "--help"]

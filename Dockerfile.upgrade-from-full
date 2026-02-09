@@ -1,0 +1,46 @@
+# Test Case 2: Upgrade from full Gazebo Jetty installation
+# Purpose: Verify that an existing full Gazebo installation can be upgraded
+#          to the new package structure while maintaining functionality
+#
+# Expected: All packages upgrade smoothly, new package split is reflected
+
+FROM ghcr.io/j-rivero/gazebo:jetty-full
+
+LABEL description="Upgrade from full Gazebo Jetty to new package structure"
+LABEL test_case="upgrade_from_full"
+
+# Store package state before upgrade
+RUN dpkg -l | grep -E "gz-sim|libgz-sim" > /tmp/packages_before.txt || true
+
+# Add prerelease repository for new packages
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-prerelease $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-pre.list > /dev/null
+
+# Perform upgrade
+RUN apt-get update && apt-get dist-upgrade -y \
+  && rm -rf /var/lib/apt/lists/*
+
+# Store package state after upgrade
+RUN dpkg -l | grep -E "gz-sim|libgz-sim" > /tmp/packages_after.txt || true
+
+# Verification: Show package changes
+RUN echo "=== Packages BEFORE upgrade ===" && cat /tmp/packages_before.txt && \
+  echo "" && \
+  echo "=== Packages AFTER upgrade ===" && cat /tmp/packages_after.txt
+
+# Verification: Check new packages are installed (GUI split)
+RUN dpkg -l | grep "libgz-sim10-gui" \
+  && echo "SUCCESS: libgz-sim10-gui package present after upgrade"
+
+RUN dpkg -l | grep "libgz-sim10-plugins-gui" \
+  && echo "SUCCESS: libgz-sim10-plugins-gui package present after upgrade"
+
+# Verification: Check server package available
+RUN apt-get update && apt-cache show gz-sim10-server \
+  && echo "SUCCESS: gz-sim10-server package available" \
+  && rm -rf /var/lib/apt/lists/*
+
+# Verification: GUI functionality still works (gz-sim command available)
+RUN which gz && gz sim --help | head -5
+
+CMD ["bash"]

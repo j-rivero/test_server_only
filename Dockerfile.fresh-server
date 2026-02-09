@@ -1,0 +1,46 @@
+# Test Case 1: Fresh server-only installation
+# Purpose: Verify gz-sim10-server can be installed on a clean system
+#          without pulling GUI dependencies
+#
+# Expected: Only server components installed, no Qt/GUI libraries
+
+FROM ubuntu:noble
+
+LABEL description="Fresh gz-sim10-server installation test"
+LABEL test_case="fresh_install"
+
+RUN apt-get update \
+  && apt-get install -y \
+  curl \
+  lsb-release \
+  && rm -rf /var/lib/apt/lists/*
+
+# Add OSRF stable repository
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+
+# Add OSRF prerelease repository (for testing PR packages)
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-prerelease $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-pre.list > /dev/null
+
+# Install server-only package
+RUN apt-get update && apt-get install -y \
+  gz-sim10-server \
+  && rm -rf /var/lib/apt/lists/*
+
+# Verification: Check server binary exists
+RUN test -f /usr/libexec/gz/sim10/gz-sim-server \
+  && echo "SUCCESS: gz-sim-server binary found"
+
+# Verification: List installed gz-sim packages
+RUN dpkg -l | grep gz-sim || true
+
+# Verification: Check that GUI packages are NOT installed
+RUN ! dpkg -l | grep -E "libgz-sim10-gui|libgz-sim10-plugins-gui" \
+  && echo "SUCCESS: No GUI packages installed"
+
+# Verification: Check Qt is NOT installed
+RUN ! dpkg -l | grep -i "libqt" \
+  && echo "SUCCESS: No Qt libraries installed"
+
+CMD ["gz-sim-server", "--help"]

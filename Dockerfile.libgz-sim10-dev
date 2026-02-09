@@ -1,0 +1,66 @@
+# Test Case: libgz-sim10-dev - Development package with full GUI
+# Purpose: Verify that users can install the development package which
+#          includes headers, pkg-config files, and all GUI components
+#
+# Expected: libgz-sim10-dev installs with GUI libraries and development files
+
+FROM ubuntu:noble
+
+LABEL description="Test libgz-sim10-dev installation (dev package with full GUI)"
+LABEL test_case="libgz_sim10_dev"
+
+RUN apt-get update \
+  && apt-get install -y \
+  curl \
+  lsb-release \
+  && rm -rf /var/lib/apt/lists/*
+
+# Add repositories
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-prerelease $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-pre.list > /dev/null
+
+# Install libgz-sim10-dev (should pull in GUI packages and development files)
+RUN apt-get update && apt-get install -y libgz-sim10-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Verification: Development package installed
+RUN dpkg -l | grep "libgz-sim10-dev" && \
+    echo "SUCCESS: libgz-sim10-dev package installed"
+
+# Verification: GUI packages are present (should be included)
+RUN dpkg -l | grep "libgz-sim10-gui" && \
+    echo "SUCCESS: libgz-sim10-gui present"
+
+RUN dpkg -l | grep "libgz-sim10-plugins-gui" && \
+    echo "SUCCESS: libgz-sim10-plugins-gui present"
+
+# Verification: Core library present
+RUN dpkg -l | grep "libgz-sim10:" && \
+    echo "SUCCESS: libgz-sim10 (core) present"
+
+# Verification: Development files present (headers)
+RUN test -d /usr/include/gz/sim10 && \
+    echo "SUCCESS: Headers found at /usr/include/gz/sim10"
+
+# Verification: pkg-config files present
+RUN find /usr -name "*gz*sim*.pc" 2>/dev/null | grep -q . && \
+    echo "SUCCESS: pkg-config files found"
+
+# Verification: gz command is available
+RUN which gz && \
+    echo "SUCCESS: gz command available"
+
+# Verification: gz sim command works
+RUN which gz && gz sim --help | head -3
+
+# List all gz-sim10 related packages
+RUN echo "=== All gz-sim10 packages installed ===" && \
+    dpkg -l | grep "gz-sim10" | awk '{print $2, $3}'
+
+# Count header files to verify development installation
+RUN echo "=== Development files ===" && \
+    find /usr/include/gz/sim10 -name "*.hh" | wc -l | \
+    awk '{print "Header files found: " $1}'
+
+CMD ["gz", "sim", "--help"]

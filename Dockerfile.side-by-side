@@ -1,0 +1,60 @@
+# Test Case 6: Side-by-side comparison of server vs full installation
+# Purpose: Compare package counts and disk usage between server-only
+#          and full installation to quantify the benefits of the split
+#
+# Expected: Server installation significantly smaller than full
+
+FROM ubuntu:noble AS base
+
+RUN apt-get update \
+  && apt-get install -y \
+  curl \
+  lsb-release \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-prerelease $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-pre.list > /dev/null
+
+# Stage: Server-only installation
+FROM base AS server-only
+
+LABEL description="Server-only installation for size comparison"
+
+RUN apt-get update && apt-get install -y gz-sim10-server \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN echo "==== SERVER-ONLY INSTALLATION ===" && \
+    echo "Total packages installed:" && dpkg -l | grep -c "^ii" && \
+    echo "" && \
+    echo "Gazebo packages installed:" && dpkg -l | grep "gz-" | wc -l && \
+    echo "" && \
+    echo "Gazebo package sizes (KB):" && \
+    dpkg-query --show --showformat='${Installed-Size}\t${Package}\n' | grep -E "(gz-|libgz-|sdformat)" | sort -rn && \
+    echo "" && \
+    echo "Total Gazebo packages size (KB):" && \
+    dpkg-query --show --showformat='${Installed-Size}\t${Package}\n' | grep -E "(gz-|libgz-|sdformat)" | awk '{sum+=$1} END {printf "%d (%.1f MB)\n", sum, sum/1024}'
+
+# Stage: Full installation
+FROM base AS full-install
+
+LABEL description="Full installation for size comparison"
+
+RUN apt-get update && apt-get install -y gz-jetty \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN echo "==== FULL INSTALLATION ===" && \
+    echo "Total packages installed:" && dpkg -l | grep -c "^ii" && \
+    echo "" && \
+    echo "Gazebo packages installed:" && dpkg -l | grep "gz-" | wc -l && \
+    echo "" && \
+    echo "Gazebo package sizes (KB):" && \
+    dpkg-query --show --showformat='${Installed-Size}\t${Package}\n' | grep -E "(gz-|libgz-|sdformat)" | sort -rn && \
+    echo "" && \
+    echo "Total Gazebo packages size (KB):" && \
+    dpkg-query --show --showformat='${Installed-Size}\t${Package}\n' | grep -E "(gz-|libgz-|sdformat)" | awk '{sum+=$1} END {printf "%d (%.1f MB)\n", sum, sum/1024}'
+
+# Final stage for reporting (uses server-only as base)
+FROM server-only AS final
+
+CMD ["gz-sim-server", "--version"]
