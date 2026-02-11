@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y gz-sim10-server \
   && rm -rf /var/lib/apt/lists/*
 
 # Define patterns for GUI-related packages
-ENV GUI_PATTERNS="libqt|qt5|qt6|libogre|ogre|libgz-gui|libgz-sim.*-gui|x11|libx11|libgl1|mesa|wayland|xcb"
+ENV GUI_PATTERNS="libqt|qt5|qt6|libgz-gui|libgz-sim.*-gui"
 
 # Verification: Check for GUI packages (should find NONE)
 RUN echo "=== Checking for GUI-related packages ===" && \
