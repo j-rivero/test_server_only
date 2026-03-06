@@ -4,7 +4,7 @@
 #
 # Expected: All packages upgrade smoothly, new package split is reflected
 
-FROM ghcr.io/j-rivero/gazebo:jetty-full
+FROM ghcr.io/openrobotics/gazebo:jetty-full
 
 LABEL description="Upgrade from full Gazebo Jetty to new package structure"
 LABEL test_case="upgrade_from_full"
