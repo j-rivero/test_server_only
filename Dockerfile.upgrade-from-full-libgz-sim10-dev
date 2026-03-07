@@ -1,0 +1,47 @@
+# Test Case: Upgrade from full Gazebo Jetty by installing libgz-sim10-dev
+# Purpose: Verify that an existing full Gazebo installation can have
+#          libgz-sim10-dev explicitly installed (targeted upgrade path)
+#
+# Expected: libgz-sim10-dev installs cleanly on top of a full installation,
+#           new package split is reflected, GUI packages remain
+
+FROM ghcr.io/openrobotics/gazebo:jetty-full
+
+LABEL description="Install libgz-sim10-dev on top of full Gazebo Jetty"
+LABEL test_case="upgrade_from_full_libgz_sim10_dev"
+
+# Store package state before install
+RUN dpkg -l | grep -E "gz-sim|libgz-sim" > /tmp/packages_before.txt || true
+
+# Add prerelease repository for new packages
+RUN curl -s https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-prerelease $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-pre.list > /dev/null
+
+# Install libgz-sim10-dev explicitly (targeted upgrade, not dist-upgrade)
+RUN apt-get update && apt-get install -y libgz-sim10-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Store package state after install
+RUN dpkg -l | grep -E "gz-sim|libgz-sim" > /tmp/packages_after.txt || true
+
+# Verification: Show package changes
+RUN echo "=== Packages BEFORE install ===" && cat /tmp/packages_before.txt && \
+  echo "" && \
+  echo "=== Packages AFTER install ===" && cat /tmp/packages_after.txt
+
+# Verification: Check new packages are installed (GUI split)
+RUN dpkg -l | grep "libgz-sim10-gui" \
+  && echo "SUCCESS: libgz-sim10-gui package present after install"
+
+RUN dpkg -l | grep "libgz-sim10-plugins-gui" \
+  && echo "SUCCESS: libgz-sim10-plugins-gui package present after install"
+
+# Verification: Check server package available
+RUN apt-get update && apt-cache show gz-sim10-server \
+  && echo "SUCCESS: gz-sim10-server package available" \
+  && rm -rf /var/lib/apt/lists/*
+
+# Verification: GUI functionality still works (gz-sim command available)
+RUN which gz && gz sim --help | head -5
+
+CMD ["bash"]

@@ -1,8 +1,8 @@
 #!/bin/bash
 # Test runner script for gz-sim10 package restructuring validation
 # Usage: ./run_tests.sh [test_name]
-#   test_name: fresh-server, upgrade-from-full, no-gui-deps,
-#              backward-compat, side-by-side, all
+#   test_name: fresh-server, upgrade-from-full, upgrade-from-full-libgz-sim10-dev,
+#              no-gui-deps, backward-compat, side-by-side, all
 
 set -e
 
@@ -44,6 +44,7 @@ run_all_tests() {
   local tests=(
     "fresh-server"
     "upgrade-from-full"
+    "upgrade-from-full-libgz-sim10-dev"
     "no-gui-deps"
     "backward-compat"
     "side-by-side"
@@ -78,7 +79,7 @@ case "${1:-all}" in
 all)
   run_all_tests
   ;;
-fresh-server | upgrade-from-full | no-gui-deps | backward-compat | side-by-side | libgz-sim10-dev | gz-jetty)
+fresh-server | upgrade-from-full | upgrade-from-full-libgz-sim10-dev | no-gui-deps | backward-compat | side-by-side | libgz-sim10-dev | gz-jetty)
   run_test "$1"
   ;;
 *)
@@ -86,6 +87,7 @@ fresh-server | upgrade-from-full | no-gui-deps | backward-compat | side-by-side 
   echo "Available tests:"
   echo "  fresh-server       - Fresh server-only installation"
   echo "  upgrade-from-full  - Upgrade from full Gazebo Jetty"
+  echo "  upgrade-from-full-libgz-sim10-dev - Install libgz-sim10-dev on full Jetty"
   echo "  no-gui-deps        - Verify no GUI dependencies"
   echo "  backward-compat    - Backward compatibility test"
   echo "  side-by-side       - Size comparison"
